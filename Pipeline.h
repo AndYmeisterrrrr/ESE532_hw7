@@ -25,8 +25,8 @@
 typedef const unsigned char matrix_type;
 
 void Scale_SW(const unsigned char * Input, unsigned char * Output);
-void Filter_SW(const unsigned char * Input, unsigned char * Output);
-void Filter_HW(const unsigned char * Input, unsigned char * Output);
+void Filter_SW( unsigned char * Input, unsigned char * Output);
+void Filter_HW( unsigned char * Input, unsigned char * Output);
 void Differentiate_SW(const unsigned char * Input, unsigned char * Output);
 int Compress_SW(const unsigned char * Input, unsigned char * Output);
 
