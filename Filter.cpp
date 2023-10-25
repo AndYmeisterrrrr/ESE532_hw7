@@ -1,6 +1,7 @@
 #include "Pipeline.h"
+#include <cstdlib>
+#include <iostream>
 #include <stdlib.h>
-
 static unsigned Coefficients[] = {2, 15, 62, 98, 62, 15, 2};
 
  void Filter_horizontal_SW(const unsigned char * Input,
@@ -131,4 +132,17 @@ void Filter_SW(const unsigned char * Input,
   Filter_horizontal_SW(Input, Temp);
   Filter_vertical_SW(Temp, Output);
   free(Temp);
+}
+
+
+
+
+void Filter_HW(const unsigned char * Input,
+	           unsigned char * Output)
+{
+  //unsigned char * Temp = (unsigned char *) malloc(SCALED_FRAME_HEIGHT * OUTPUT_FRAME_WIDTH);
+	 unsigned char  Temp[SCALED_FRAME_HEIGHT * OUTPUT_FRAME_WIDTH] ;
+  Filter_horizontal_HW(Input, Temp);
+  Filter_vertical_HW(Temp, Output);
+  //free(Temp);
 }
