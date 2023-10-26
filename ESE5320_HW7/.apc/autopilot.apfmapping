@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<autopilotfilemapping:AutoPilotFileMapping xmlns:autopilotfilemapping="www.autoesl.com/autopilotfilemapping">
+  <source>
+    <originFiles name="Filter.cpp" path="/mnt/castor/seas_home/c/chen3xn/ese532_code/hw7/Filter.cpp"/>
+    <originFiles name="Pipeline.h" path="/mnt/castor/seas_home/c/chen3xn/ese532_code/hw7/Pipeline.h"/>
+  </source>
+  <testbench>
+    <originFiles name="Testbench_filter.cpp" path="/mnt/castor/seas_home/c/chen3xn/ese532_code/hw7/Testbench_filter.cpp"/>
+  </testbench>
+</autopilotfilemapping:AutoPilotFileMapping>

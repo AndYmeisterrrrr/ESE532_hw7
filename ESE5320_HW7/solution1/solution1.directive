@@ -1,0 +1,15 @@
+<AutoPilot:ProjectResources xmlns:AutoPilot="com.autoesl.autopilot.ui.directiveView">
+    <sourceFile name="">
+        <directive functionName="Filter_HW" label="" functionLabel="">
+            <pragma name="TOP">
+                <option name="name" value="Filter_HW"/>
+            </pragma>
+        </directive>
+        <directive functionName="Filter_HW" label="" functionLabel="">
+            <pragma name="TOP">
+                <option name="name" value="Filter_HW"/>
+            </pragma>
+        </directive>
+    </sourceFile>
+</AutoPilot:ProjectResources>
+

@@ -1,0 +1,10 @@
+INFO: [SIM 2] *************** CSIM start ***************
+INFO: [SIM 4] CSIM will launch GCC as the compiler.
+   Compiling ../../../../Testbench_filter.cpp in debug mode
+../../../../Testbench_filter.cpp: In function ‘int main()’:
+../../../../Testbench_filter.cpp:117:30: error: ‘Filter_HW’ was not declared in this scope
+   Filter_HW(Input_1,Output_HW);
+                              ^
+make: *** [csim.mk:72: obj/Testbench_filter.o] Error 1
+ERR: [SIM 100] 'csim_design' failed: compilation error(s).
+INFO: [SIM 3] *************** CSIM finish ***************
