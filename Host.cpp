@@ -44,6 +44,13 @@ int main(int argc, char *argv[])
     cl::Buffer FilterInput_buf[NUM_MAT];
     cl::Buffer FilterOutput_buf[NUM_MAT];
     int Size = 0;/*To store total length of compressed output of all frames combined*/
+    
+    std::vector<cl::Event> read_done(FRAMES);    // host perspective 
+    std::vector<cl::Event> write_done(FRAMES);
+    std::vector<cl::Event> execute_done(FRAMES); // host perspective 
+    std::vector<cl::Event> write_waitlist;
+    std::vector<std::vector<cl::Event>> execute_waitlists(FRAMES);
+    std::vector<std::vector<cl::Event>> read_waitlists(FRAMES);
     // ------------------------------------------------------------------------------------
     // Step 1: Initialize the OpenCL environment
      // ------------------------------------------------------------------------------------
@@ -85,17 +92,16 @@ int main(int argc, char *argv[])
         FilterOutPtr[i] = (unsigned char*)q.enqueueMapBuffer(FilterOutput_buf[i], CL_TRUE, CL_MAP_WRITE, 0, bytes_per_iteration);
     }
     
-    timer2.add("Populating buffer inputs");
     
     Load_data(Input_data);
     /*Compute scaling for FRAMES*/
     for(int frame = 0; frame < FRAMES; frame++)
     {
-        if(i >= NUM_MAT)
+        if(frame >= NUM_MAT)
         {
-            read_done[i-(NUM_MAT)].wait();
-            Differentiate_SW(FilterOutPtr + (frame - NUM_MAT)%NUM_MAT,DifferentiateOut + (frame - NUM_MAT)*OUTPUT_FRAME_SIZE);
-            Size = Compress_SW(DifferentiateOut + (frame - NUM_MAT) * OUTPUT_FRAME_SIZE, Output + (frame - NUM_MAT) * MAX_OUTPUT_SIZE);
+            read_done[frame-(NUM_MAT)].wait();
+            Differentiate_SW(FilterOutPtr + (frame - NUM_MAT)%NUM_MAT,DifferentiateOut + frame*OUTPUT_FRAME_SIZE);
+            Size = Compress_SW(DifferentiateOut + frame * OUTPUT_FRAME_SIZE, Output + frame * MAX_OUTPUT_SIZE);
            //Load data for Filter kernel
             Scale_SW(Input + frame*INPUT_FRAME_SIZE,FilterInPtr + (frame % NUM_MAT) * SCALED_FRAME_SIZE);
         }
@@ -105,25 +111,25 @@ int main(int argc, char *argv[])
             Scale_SW(Input + frame * INPUT_FRAME_SIZE,FilterInPtr + frame * SCALED_FRAME_SIZE);
         }
         //Set arguments for Filter
-        krne_Filter.setArg(0, FilterInput_buf[i%NUM_MAT]);
-        krnl_Filter.setArg(1, FilterOutput_buf[i%NUM_MAT]);
+        krne_Filter.setArg(0, FilterInput_buf[frame%NUM_MAT]);
+        krnl_Filter.setArg(1, FilterOutput_buf[frame%NUM_MAT]);
         
-        if(i == 0)
+        if(frame == 0)
         {
-            q.enqueueMigrateMemObjects(FilterInput_buf[i%NUM_MAT], 0 /* 0 means from host*/, NULL, &write_done[i]);
-            write_waitlist.push_back(write_done[i]);
+            q.enqueueMigrateMemObjects(FilterInput_buf[frame%NUM_MAT], 0 /* 0 means from host*/, NULL, &write_done[frame]);
+            write_waitlist.push_back(write_done[frame]);
         }
         else
         {
-            q.enqueueMigrateMemObjects(FilterInput_buf[i%NUM_MAT], 0 /* 0 means from host*/, &write_waitlist, &write_done[i]);
-            write_waitlist.push_back(write_done[i]);
+            q.enqueueMigrateMemObjects(FilterInput_buf[frame%NUM_MAT], 0 /* 0 means from host*/, &write_waitlist, &write_done[frame]);
+            write_waitlist.push_back(write_done[frame]);
         }
 
-        execute_waitlists[i].push_back(write_done[i]);
-        q.enqueueTask(krne_Filter, &execute_waitlists[i], &execute_done[i]);
+        execute_waitlists[frame].push_back(write_done[frame]);
+        q.enqueueTask(krne_Filter, &execute_waitlists[frame], &execute_done[frame]);
 
-        read_waitlists[i].push_back(execute_done[i]);
-        q.enqueueMigrateMemObjects({FilterOutput_buf[i%NUM_MAT]}, CL_MIGRATE_MEM_OBJECT_HOST, &read_waitlists[i], &read_done[i]);
+        read_waitlists[frame].push_back(execute_done[frame]);
+        q.enqueueMigrateMemObjects({FilterOutput_buf[frame%NUM_MAT]}, CL_MIGRATE_MEM_OBJECT_HOST, &read_waitlists[frame], &read_done[frame]);
 
     }
     q.finish();
