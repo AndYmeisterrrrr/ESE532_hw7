@@ -18,19 +18,15 @@
 
 #define NUM_MAT 1
 #define NUM_TESTS 1
-static void init_arrays(float *A[NUM_MAT], float *B[NUM_MAT])
+static void init_arrays(unsigned char *A[NUM_MAT])
 {
     for (int m = 0; m < NUM_MAT; m++)
     {
-        for (int c = 0; c < CHUNKS; c++)
+        for (int i = 0; i < INPUT_FRAME_HEIGHT; i++)
         {
-            for (int i = 0; i < N; i++)
-            {
-                for (int j = 0; j < N; j++)
-                {
-                    A[m][ c * N * N + i * N + j] = 1+i*N+j;
-                    B[m][ c * N * N + i * N + j] = rand() % (N * N);
-                }
+            for (int j = 0; j < INPUT_FRAME_WIDTH; j++)
+            {   
+                A[m][ i * INPUT_FRAME_HEIGHT + j] = 1+i*INPUT_FRAME_HEIGHT+j;
             }
         }
     }
