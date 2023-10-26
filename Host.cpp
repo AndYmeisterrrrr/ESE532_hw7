@@ -14,7 +14,7 @@
 #include <vector>
 
 #include "Pipeline.h"
-#include "Utilities.h"
+#include "Common/Utilities.h"
 
 #define NUM_MAT 1
 #define NUM_TESTS 1
@@ -33,14 +33,18 @@ static void init_arrays(unsigned char *A[NUM_MAT])
 }
 
 
+
 int main(int argc, char *argv[])
 {
-    EventTimer timer1, timer2;
-    timer1.add("Main program");
-
-    // std::cout << "Running " << CHUNKS << "x" <<NUM_TESTS << " iterations of " << N << "x" << N
-    // << " task pipelined floating point mmult..." << std::endl;
-    // // ------------------------------------------------------------------------------------
+    unsigned char *Input = (unsigned char *)malloc(FRAMES * INPUT_FRAME_SIZE);
+    unsigned char *Output = (unsigned char *)malloc(FRAMES * MAX_OUTPUT_SIZE);
+    unsigned char *DifferentiateOut = (unsigned char *)malloc(FRAMES * OUTPUT_FRAME_SIZE);
+    unsigned char *FilterInPtr[NUM_MAT];
+    unsigned char *FilterOutPtr[NUM_MAT];
+    cl::Buffer FilterInput_buf[NUM_MAT];
+    cl::Buffer FilterOutput_buf[NUM_MAT];
+    int Size = 0;/*To store total length of compressed output of all frames combined*/
+    // ------------------------------------------------------------------------------------
     // Step 1: Initialize the OpenCL environment
      // ------------------------------------------------------------------------------------
     timer2.add("OpenCL Initialization");
@@ -62,12 +66,11 @@ int main(int argc, char *argv[])
     // ------------------------------------------------------------------------------------
     timer2.add("Allocate contiguous OpenCL buffers");
 
-    size_t elements_per_iteration = SCALED_FRAME_HEIGHT * SCALED_FRAME_WIDTH;
+    size_t elements_per_iteration = SCALED_FRAME_SIZE;
     size_t FilterInputbytes_per_iteration = elements_per_iteration * sizeof(unsigned char);
-    size_t FilterOutputbytes_per_iteration = OUTPUT_FRAME_HEIGHT * OUTPUT_FRAME_WIDTH * sizeof(unsigned char);
+    size_t FilterOutputbytes_per_iteration = OUTPUT_FRAME_SIZE * sizeof(unsigned char);
 
-    cl::Buffer FilterInput_buf[NUM_MAT];
-    cl::Buffer FilterOutput_buf[NUM_MAT];
+   
     /*Create NUM_MAT buffers for parallel computing of Filter kernel*/
     for(int i = 0; i < NUM_MAT; i++)
     {
@@ -75,41 +78,36 @@ int main(int argc, char *argv[])
         FilterOutput_buf[i] = cl::Buffer(context, CL_MEM_READ_ONLY, FilterOutputbytes_per_iteration, NULL, &err);
     }
 
-    unsigned char *FilterInPtr[NUM_MAT];
     /*Assign the pointer of Filter input to output of Scaled array*/
     for(int i = 0; i < NUM_MAT; i++)
     {
         FilterInPtr[i] = (unsigned char*)q.enqueueMapBuffer(FilterInput_buf[i], CL_TRUE, CL_MAP_WRITE, 0, bytes_per_iteration);
+        FilterOutPtr[i] = (unsigned char*)q.enqueueMapBuffer(FilterOutput_buf[i], CL_TRUE, CL_MAP_WRITE, 0, bytes_per_iteration);
     }
     
     timer2.add("Populating buffer inputs");
-    unsigned char Input[INPUT_FRAME_HEIGHT * INPUT_FRAME_WIDTH];
-    init_arrays(Input);
-    /*Output of Scale_Sw is fed to input buffer for Filter_HW*/
-    Scale_SW(Input,FilterInptr[0]);
-    //@Mod: Arrays would be fed from output of scale function rather than init_arrays 
-
-    // ------------------------------------------------------------------------------------
-    // Step 3: Run the kernel
-    // ------------------------------------------------------------------------------------
-
-    timer2.add("Running kernel");
-
-    std::vector<cl::Event> read_done(NUM_TESTS);    // host perspective 
-    std::vector<cl::Event> write_done(NUM_TESTS);
-    std::vector<cl::Event> execute_done(NUM_TESTS); // host perspective 
-    std::vector<cl::Event> write_waitlist;
-    std::vector<std::vector<cl::Event>> execute_waitlists(NUM_TESTS);
-    std::vector<std::vector<cl::Event>> read_waitlists(NUM_TESTS);
-    for (int i = 0; i < NUM_TESTS; i++)
+    
+    Load_data(Input_data);
+    /*Compute scaling for FRAMES*/
+    for(int frame = 0; frame < FRAMES; frame++)
     {
-
         if(i >= NUM_MAT)
         {
             read_done[i-(NUM_MAT)].wait();
+            Differentiate_SW(FilterOutPtr + (frame - NUM_MAT)%NUM_MAT,DifferentiateOut + frame*OUTPUT_FRAME_SIZE);
+            Size = Compress_SW(DifferentiateOut + frame * OUTPUT_FRAME_SIZE, Output + frame * MAX_OUTPUT_SIZE);
+           //Load data for Filter kernel
+            Scale_SW(Input + frame*INPUT_FRAME_SIZE,FilterInPtr + (frame % NUM_MAT) * SCALED_FRAME_SIZE);
         }
-
+        else
+        {
+            //Load data for Filter kernel
+            Scale_SW(Input + frame * INPUT_FRAME_SIZE,FilterInPtr + frame * SCALED_FRAME_SIZE);
+        }
+        //Set arguments for Filter
         krne_Filter.setArg(0, FilterInput_buf[i%NUM_MAT]);
+        krnl_Filter.setArg(1, FilterOutput_buf[i%NUM_MAT]);
+        
         if(i == 0)
         {
             q.enqueueMigrateMemObjects(FilterInput_buf[i%NUM_MAT], 0 /* 0 means from host*/, NULL, &write_done[i]);
@@ -126,39 +124,23 @@ int main(int argc, char *argv[])
 
         read_waitlists[i].push_back(execute_done[i]);
         q.enqueueMigrateMemObjects({FilterOutput_buf[i%NUM_MAT]}, CL_MIGRATE_MEM_OBJECT_HOST, &read_waitlists[i], &read_done[i]);
-    }
 
+    }
     q.finish();
-    unsigned char DifferentiateOutput[OUTPUT_FRAME_HEIGHT * OUTPUT_FRAME_WIDTH],CompressOutput[MAX_OUTPUT_SIZE];
-    Differentiate_SW(FilterOutput_buf[0],DifferentiateOutput);
-    Compress_SW(DifferentiateOutput,CompressOutput)
-    // ------------------------------------------------------------------------------------
-    // Step 4: Release Allocated Resources
-    // ------------------------------------------------------------------------------------
-
-    timer2.add("Writing output to output_fpga.bin");
-    FILE *file = fopen("output_fpga.bin", "wb");
-
-    for (int i = 0; i < NUM_MAT; i++)
+    /*Compute Differentiate and Compress for the last NUM_MAT frames once everything in queue finishes*/
+    for(int frame = FRAMES - NUM_MAT - 1; frame < FRAMES; frame++)
     {
-      fwrite(c[i], 1, bytes_per_iteration, file);
+       Differentiate_SW(FilterOutPtr + frame * OUTPUT_FRAME_SIZE, DifferentiateOut + frame * OUTPUT_FRAME_SIZE);
+       Size = Compress(DifferentiateOut + frame * OUTPUT_FRAME_SIZE, Output + frame * MAX_OUTPUT_SIZE); 
     }
-    fclose(file);
+    Store_data("Output_new.bin", Output_data, Size);
+    Check_data(Output_data, Size);
+    /*free memory*/
+    free(Input);
+    free(Output);
+    free(DifferentiateOut);
 
-    delete[] fileBuf;
-
-    timer2.finish();
-    std::cout << "--------------- Key execution times ---------------"
-    << std::endl;
-    timer2.print();
-
-    timer1.finish();
-    std::cout << "--------------- Total time ---------------"
-    << std::endl;
-    timer1.print();
-    return 0;
 }
-
 
 
 // int main(int argc, char *argv[])
