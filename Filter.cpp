@@ -57,42 +57,41 @@ static unsigned Coefficients[] = {2, 15, 62, 98, 62, 15, 2};
 }
 
 
-
-void Filter_vertical_HW(hls::stream< unsigned char>& TempStream,
+//workable filter_ver
+ void Filter_vertical_HW(hls::stream< unsigned char>& TempStream,
 		                      hls::stream<unsigned char>& outStream)
 {
 
 	  int X, Y, i,X_tmp,Y_tmp;
 	  unsigned char Input_tmp[FILTER_LENGTH * OUTPUT_FRAME_WIDTH];
-	  /*Buffer FILTER_LENGTH rows*/
+	  //Buffer FILTER_LENGTH rows
 	  for(Y = 0; Y < FILTER_LENGTH - 1; Y++)
 		  for(X = 0; X < OUTPUT_FRAME_WIDTH; X++)
 			  Input_tmp[Y*OUTPUT_FRAME_WIDTH + X] = TempStream.read();
-	  /*Filter Vertical calculation*/
+
+
+	  //Filter Vertical calculation
 	  for (Y = 0; Y < OUTPUT_FRAME_HEIGHT; Y++)
 	  {
-	    /*Read one new row every cycle*/
-		for(X_tmp = 0; X_tmp < OUTPUT_FRAME_WIDTH; X_tmp++)
-			Input_tmp[(FILTER_LENGTH - 1)*OUTPUT_FRAME_WIDTH + X_tmp] = TempStream.read();
 		for (X = 0; X < OUTPUT_FRAME_WIDTH; X++)
 	    {
+		  Input_tmp[(Y+6)%7*OUTPUT_FRAME_WIDTH + X] = TempStream.read();//Read one new row every cycle
 		  unsigned int Sum = 0;
 	      for (i = 0; i < FILTER_LENGTH; i++)
 	      {
-#pragma HLS PIPELINE
-#pragma HLS unroll
-	        Sum += Coefficients[i] * Input_tmp[(i) * OUTPUT_FRAME_WIDTH + X];
+			#pragma HLS PIPELINE
+			#pragma HLS unroll
+	        Sum += Coefficients[i] * Input_tmp[((Y+i)%7) * OUTPUT_FRAME_WIDTH + X];
+
 	      }
 	      outStream << (Sum >> 8);
 	    }
-       /*Shift Input_tmp by one column*/
-	    for(Y_tmp = 0; Y_tmp < FILTER_LENGTH - 1; Y_tmp++ )
-	    	for(X_tmp = 0; X_tmp < OUTPUT_FRAME_WIDTH; X_tmp++)
-	    	{
-	    		Input_tmp[Y_tmp*OUTPUT_FRAME_WIDTH + X_tmp] = Input_tmp[(Y_tmp + 1)*OUTPUT_FRAME_WIDTH + X_tmp];
-	    	}
 	  }
 }
+
+
+
+
 
 
  void Filter_vertical_SW( unsigned char * Input,
@@ -148,13 +147,18 @@ void Filter_HW( unsigned char * Input,
     static hls::stream<unsigned char> inStream("input_stream");
     static hls::stream<unsigned char> TempStream("temp_stream");
     static hls::stream<unsigned char> outStream("output_stream");
+
+
 #pragma HLS STREAM variable = inStream depth=32
 #pragma HLS STREAM variable = TempStream depth=32
 #pragma HLS STREAM variable = outStream depth=32
 #pragma HLS Dataflow   
+
     read_input(Input, inStream);
     Filter_horizontal_HW(inStream,TempStream);
     Filter_vertical_HW(TempStream,outStream);
+
+
     write_output(Output,outStream);
 }
 
