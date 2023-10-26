@@ -94,8 +94,8 @@ int main(int argc, char *argv[])
         if(i >= NUM_MAT)
         {
             read_done[i-(NUM_MAT)].wait();
-            Differentiate_SW(FilterOutPtr + (frame - NUM_MAT)%NUM_MAT,DifferentiateOut + frame*OUTPUT_FRAME_SIZE);
-            Size = Compress_SW(DifferentiateOut + frame * OUTPUT_FRAME_SIZE, Output + frame * MAX_OUTPUT_SIZE);
+            Differentiate_SW(FilterOutPtr + (frame - NUM_MAT)%NUM_MAT,DifferentiateOut + (frame - NUM_MAT)*OUTPUT_FRAME_SIZE);
+            Size = Compress_SW(DifferentiateOut + (frame - NUM_MAT) * OUTPUT_FRAME_SIZE, Output + (frame - NUM_MAT) * MAX_OUTPUT_SIZE);
            //Load data for Filter kernel
             Scale_SW(Input + frame*INPUT_FRAME_SIZE,FilterInPtr + (frame % NUM_MAT) * SCALED_FRAME_SIZE);
         }
