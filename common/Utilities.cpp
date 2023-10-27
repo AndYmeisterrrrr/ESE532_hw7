@@ -113,7 +113,7 @@ void Exit_with_error(const char *s)
 
 void Load_data(unsigned char *Data)
 {
-    unsigned int Size = FRAMES * FRAME_SIZE;
+    unsigned int Size = FRAMES * INPUT_FRAME_SIZE;
 
     FILE *File = fopen("../data/Input.bin", "rb");
     if (File == NULL)
@@ -127,7 +127,7 @@ void Load_data(unsigned char *Data)
 }
 
 // from https://eli.thegreenplace.net/2016/c11-threads-affinity-and-hyperthreading/
-void pin_thread_to_cpu(std::thread &t, int cpu_num)
+/*void pin_thread_to_cpu(std::thread &t, int cpu_num)
 {
 #if defined(WIN32) || defined(_WIN32) || defined(__WIN32__) || defined(__NT__) || defined(__APPLE__)
     return;
@@ -162,7 +162,7 @@ void pin_main_thread_to_cpu0()
     }
 #endif
 }
-
+*/
 void Store_data(const char *Filename, unsigned char *Data, unsigned int Size)
 {
     FILE *File = fopen(Filename, "wb");

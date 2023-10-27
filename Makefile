@@ -61,8 +61,8 @@ $(HOST_EXE): $(HOST_OBJECTS)
 # primary build targets
 #
 
-.PHONY: Compress clean
-Compress: package/sd_card.img
+.PHONY: fpga clean
+fpga: package/sd_card.img
 
 .NOTPARALLEL: clean
 

@@ -24,7 +24,7 @@
 #include <stdio.h>
 #include <CL/cl2.hpp>
 #include "EventTimer.h"
-
+#include "Pipeline.h"
 // When creating a buffer with user pointer (CL_MEM_USE_HOST_PTR), under the
 // hood
 // User ptr is used if and only if it is properly aligned (page aligned). When
@@ -79,5 +79,8 @@ template <typename T> struct aligned_allocator {
 std::vector<cl::Device> get_xilinx_devices();
 char* read_binary_file(const std::string &xclbin_file_name, unsigned &nb);
 void set_callback(cl::Event event, const char *queue_name);
+void Load_data(unsigned char *Data);
+void Store_data(const char *Filename, unsigned char *Data, unsigned int Size);
+void Check_data(unsigned char *Data, unsigned int Size);
 
 #endif
