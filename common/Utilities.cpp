@@ -192,18 +192,21 @@ void Check_data(unsigned char *Data, unsigned int Size)
 
     if (fclose(File) != 0)
         Exit_with_error("fclose for Check_data failed");
-
+   
+    // printf("reading successfully\n"); 
     for (unsigned int i = 0; i < Size; i++)
     {
+        
         if (Data_golden[i] != Data[i])
         {
             free(Data_golden);
             error_code = i + 1;
         }
+        // printf("Comparing byte %d\n",i);
     }
 
-    free(Data_golden);
 
+// printf("freed the Data_golden\n");
     if (error_code != 0)
     {
         printf("You got errors in data %d\n", error_code);
@@ -211,6 +214,7 @@ void Check_data(unsigned char *Data, unsigned int Size)
     }
     else
     {
+        free(Data_golden);
         printf("Application completed successfully.\n");
     }
 }

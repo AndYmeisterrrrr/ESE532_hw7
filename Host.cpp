@@ -21,24 +21,20 @@
 
 int main(int argc, char *argv[])
 {
-    unsigned char *Input = (unsigned char *)malloc(FRAMES * INPUT_FRAME_SIZE);
-    //unsigned char *Output = (unsigned char *)malloc(FRAMES * MAX_OUTPUT_SIZE);
-    // unsigned char *DifferentiateOut = (unsigned char *)malloc(FRAMES * OUTPUT_FRAME_SIZE);
-  
-    cl::Buffer FilterInput_buf[NUM_MAT];
-    cl::Buffer FilterOutput_buf[NUM_MAT];
-    int Size = 0;/*To store total length of compressed output of all frames combined*/
     
-    std::vector<cl::Event> read_done(FRAMES);    // host perspective 
-    std::vector<cl::Event> write_done(FRAMES);
-    std::vector<cl::Event> execute_done(FRAMES); // host perspective 
-    std::vector<cl::Event> write_waitlist;
-    std::vector<std::vector<cl::Event>> execute_waitlists(FRAMES);
-    std::vector<std::vector<cl::Event>> read_waitlists(FRAMES);
+    cl::Buffer FilterInput_buf;
+    cl::Buffer FilterOutput_buf;
+    unsigned char *FilterInPtr;
+    unsigned char *FilterOutPtr;
+
+    size_t FilterInputbytes_per_iteration = (SCALED_FRAME_SIZE * sizeof(unsigned char));
+    size_t FilterOutputbytes_per_iteration = (OUTPUT_FRAME_SIZE * sizeof(unsigned char));
+    //  printf("before allocatig buffer\n");
+
     // ------------------------------------------------------------------------------------
     // Step 1: Initialize the OpenCL environment
      // ------------------------------------------------------------------------------------
-    // timer2.add("OpenCL Initialization");
+     
     cl_int err;
     std::string binaryFile = argv[1];
     unsigned fileBufSize;
@@ -55,78 +51,79 @@ int main(int argc, char *argv[])
     // ------------------------------------------------------------------------------------
     // Step 2: Create buffers and initialize test values
     // ------------------------------------------------------------------------------------
-    // timer2.add("Allocate contiguous OpenCL buffers");
-
-    size_t FilterInputbytes_per_iteration = SCALED_FRAME_SIZE * sizeof(unsigned char);
-    size_t FilterOutputbytes_per_iteration = OUTPUT_FRAME_SIZE * sizeof(unsigned char);
-
-     printf("before making buffer\n");
     /*Create NUM_MAT buffers for parallel computing of Filter kernel*/
-    for(int i = 0; i < NUM_MAT; i++)
-    {
-        FilterInput_buf[i] = cl::Buffer(context, CL_MEM_READ_ONLY, FilterInputbytes_per_iteration, NULL, &err);
-        FilterOutput_buf[i] = cl::Buffer(context, CL_MEM_READ_ONLY, FilterOutputbytes_per_iteration, NULL, &err);
-    }
-     printf("after making buffer\n");
-    unsigned char *FilterInPtr[NUM_MAT];
-    unsigned char *FilterOutPtr[NUM_MAT];
+    FilterInput_buf = cl::Buffer(context, CL_MEM_READ_ONLY, FilterInputbytes_per_iteration, NULL, &err);
+    FilterOutput_buf = cl::Buffer(context, CL_MEM_READ_ONLY, FilterOutputbytes_per_iteration, NULL, &err);
+    //  printf("after allocating buffer\n");
     /*Assign the pointer of Filter input to output of Scaled array*/
-    for(int i = 0; i < NUM_MAT; i++)
-    {
-        // FilterOutPtr[i] = (unsigned char*)q.enqueueMapBuffer(FilterOutput_buf[i], CL_TRUE, CL_MAP_WRITE, 0, FilterOutputbytes_per_iteration);
-        // FilterInPtr[i] = (unsigned char*)q.enqueueMapBuffer(FilterInput_buf[i], CL_TRUE, CL_MAP_WRITE, 0, FilterInputbytes_per_iteration);
-        printf("Input buffer allocated\n");
-    }
+    FilterOutPtr = (unsigned char*)q.enqueueMapBuffer(FilterOutput_buf, CL_TRUE, CL_MAP_WRITE, 0, FilterOutputbytes_per_iteration);
+    FilterInPtr = (unsigned char*)q.enqueueMapBuffer(FilterInput_buf, CL_TRUE, CL_MAP_WRITE, 0, FilterInputbytes_per_iteration);
     
-     printf("before loading data");
-    unsigned char *DifferentiateOut = (unsigned char *)malloc(FRAMES * OUTPUT_FRAME_SIZE);
-    unsigned char *Output = (unsigned char *)malloc(FRAMES * MAX_OUTPUT_SIZE);
-    
+    //  printf("after allocating pointer\n");
+    unsigned char *Input = (unsigned char *)malloc(FRAMES * INPUT_FRAME_SIZE);
+    // printf("before load data\n");
     Load_data(Input);
-     printf("after making buffer");
+    // printf("after load data\n");
+    unsigned char *DifferentiateOut = (unsigned char *)malloc(FRAMES * OUTPUT_FRAME_SIZE);
+    unsigned char *Output = (unsigned char *)malloc(FRAMES * MAX_OUTPUT_SIZE);    
+    //  printf("after assigning all the needed memory\n");
+  
+    int Size = 0;/*To store total length of compressed output of all frames combined*/
+    
+    std::vector<cl::Event> read_done(FRAMES);    // host perspective 
+    std::vector<cl::Event> write_done(FRAMES);
+    std::vector<cl::Event> execute_done(FRAMES); // host perspective 
+    std::vector<cl::Event> write_waitlist;
+    std::vector<std::vector<cl::Event>> execute_waitlists(FRAMES);
+    std::vector<std::vector<cl::Event>> read_waitlists(FRAMES);
+
+    // printf("assigned all the vector of waitlists and events needed");
+
 
     /*Compute scaling for FRAMES*/
     for(int frame = 0; frame < FRAMES; frame++)
     {
-        printf("compressing %d frame",frame);
-        FilterInPtr[0] = (unsigned char*)q.enqueueMapBuffer(FilterInput_buf[0], CL_TRUE, CL_MAP_WRITE, 0, FilterInputbytes_per_iteration);
-        Scale_SW(Input + frame * INPUT_FRAME_SIZE,*(FilterInPtr + frame * SCALED_FRAME_SIZE));
+        // printf("compressing %d frame\n",frame);
+        Scale_SW(Input + frame * INPUT_FRAME_SIZE,FilterInPtr);
         //Set arguments for Filter
-        krnl_Filter.setArg(0, FilterInput_buf[frame%NUM_MAT]);
-        krnl_Filter.setArg(1, FilterOutput_buf[frame%NUM_MAT]);
+        // printf("Setting kernel arguments\n");
+        krnl_Filter.setArg(0, FilterInput_buf);
+        krnl_Filter.setArg(1, FilterOutput_buf);
         
         if(frame == 0)
         {
-            q.enqueueMigrateMemObjects({FilterInput_buf[frame%NUM_MAT]}, 0 /* 0 means from host*/, NULL, &write_done[frame]);
+            q.enqueueMigrateMemObjects({FilterInput_buf}, 0 /* 0 means from host*/, NULL, &write_done[frame]);
             write_waitlist.push_back(write_done[frame]);
         }
         else
         {
-            q.enqueueMigrateMemObjects({FilterInput_buf[frame%NUM_MAT]}, 0 /* 0 means from host*/, &write_waitlist, &write_done[frame]);
+            q.enqueueMigrateMemObjects({FilterInput_buf}, 0 /* 0 means from host*/, &write_waitlist, &write_done[frame]);
             write_waitlist.push_back(write_done[frame]);
         }
-
+        // printf("write done\n");
         execute_waitlists[frame].push_back(write_done[frame]);
         q.enqueueTask(krnl_Filter, &execute_waitlists[frame], &execute_done[frame]);
-
+        // printf("execution done\n");
         read_waitlists[frame].push_back(execute_done[frame]);
-        q.enqueueMigrateMemObjects({FilterOutput_buf[frame%NUM_MAT]}, CL_MIGRATE_MEM_OBJECT_HOST, &read_waitlists[frame], &read_done[frame]);
+        q.enqueueMigrateMemObjects({FilterOutput_buf}, CL_MIGRATE_MEM_OBJECT_HOST, &read_waitlists[frame], &read_done[frame]);
+
         read_done[frame].wait();
-        q.enqueueUnmapMemObject(FilterInput_buf[0],FilterInPtr[0]);
-        FilterOutPtr[0] = (unsigned char*)q.enqueueMapBuffer(FilterOutput_buf[0], CL_TRUE, CL_MAP_WRITE, 0, FilterOutputbytes_per_iteration);
-        Differentiate_SW(*(FilterOutPtr + (frame)%NUM_MAT),DifferentiateOut + (frame)*OUTPUT_FRAME_SIZE);
-        q.enqueueUnmapMemObject(FilterOutput_buf[0],FilterOutPtr[0]);
+        // printf("Filtering done\n");
+        Differentiate_SW(FilterOutPtr,DifferentiateOut + (frame)*OUTPUT_FRAME_SIZE);
+        // printf("Differentiate done\n");
         Size = Compress_SW(DifferentiateOut + (frame) * OUTPUT_FRAME_SIZE, Output);
+        // printf("Compression done\n");
            
     }
     q.finish();
-    
+ 
     Store_data("Output_new.bin", Output, Size);
+    // printf("storing data done fr size = %d\n",Size);
     Check_data(Output, Size);
-    /*free memory*/
+    // printf("Checking done\n");
+    // /*free memory*/
     free(Input);
     free(Output);
     free(DifferentiateOut);
-
 }
 
