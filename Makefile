@@ -78,7 +78,7 @@ clean-package:
 	-${RMDIR} package
 	-${RMDIR} package.build
 
-clean: clean-cpu clean-host clean-accelerators clean-package
+clean: clean-host clean-accelerators clean-package
 	-$(RM) *.log *.package_summary
 	-${RMDIR} _x .ipcache
 

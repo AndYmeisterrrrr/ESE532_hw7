@@ -179,7 +179,7 @@ void Store_data(const char *Filename, unsigned char *Data, unsigned int Size)
 void Check_data(unsigned char *Data, unsigned int Size)
 {
     int error_code = 0;
-    unsigned char *Data_golden = (unsigned char *)malloc(MAX_OUTPUT_SIZE);
+    unsigned char *Data_golden = (unsigned char *)malloc(5000 * 1024 * 10);
     FILE *File = fopen("../data/Golden.bin", "rb");
     if (File == NULL)
         Exit_with_error("fopen for Check_data failed");
