@@ -21,7 +21,9 @@
 
 int main(int argc, char *argv[])
 {
-    
+    EventTimer timer1, timer2;
+    timer1.add("Main program");
+
     cl::Buffer FilterInput_buf;
     cl::Buffer FilterOutput_buf;
     unsigned char *FilterInPtr;
@@ -34,7 +36,7 @@ int main(int argc, char *argv[])
     // ------------------------------------------------------------------------------------
     // Step 1: Initialize the OpenCL environment
      // ------------------------------------------------------------------------------------
-     
+    timer2.add("OpenCL Initialization");
     cl_int err;
     std::string binaryFile = argv[1];
     unsigned fileBufSize;
@@ -51,6 +53,7 @@ int main(int argc, char *argv[])
     // ------------------------------------------------------------------------------------
     // Step 2: Create buffers and initialize test values
     // ------------------------------------------------------------------------------------
+    timer2.add("Allocate contiguous OpenCL buffers");
     /*Create NUM_MAT buffers for parallel computing of Filter kernel*/
     FilterInput_buf = cl::Buffer(context, CL_MEM_READ_ONLY, FilterInputbytes_per_iteration, NULL, &err);
     FilterOutput_buf = cl::Buffer(context, CL_MEM_READ_ONLY, FilterOutputbytes_per_iteration, NULL, &err);
@@ -62,6 +65,7 @@ int main(int argc, char *argv[])
     //  printf("after allocating pointer\n");
     unsigned char *Input = (unsigned char *)malloc(FRAMES * INPUT_FRAME_SIZE);
     // printf("before load data\n");
+    timer2.add("Populating buffer inputs");
     Load_data(Input);
     // printf("after load data\n");
     unsigned char *DifferentiateOut = (unsigned char *)malloc(FRAMES * OUTPUT_FRAME_SIZE);
@@ -69,6 +73,7 @@ int main(int argc, char *argv[])
     //  printf("after assigning all the needed memory\n");
   
     int Size = 0;/*To store total length of compressed output of all frames combined*/
+    timer2.add("Running kernel");
     
     std::vector<cl::Event> read_done(FRAMES);    // host perspective 
     std::vector<cl::Event> write_done(FRAMES);
@@ -116,7 +121,7 @@ int main(int argc, char *argv[])
            
     }
     q.finish();
- 
+    timer2.add("Writing output to output_fpga.bin");
     Store_data("Output_new.bin", Output, Size);
     // printf("storing data done fr size = %d\n",Size);
     Check_data(Output, Size);
@@ -125,5 +130,16 @@ int main(int argc, char *argv[])
     free(Input);
     free(Output);
     free(DifferentiateOut);
+    delete[] fileBuf;
+
+    timer2.finish();
+    std::cout << "--------------- Key execution times ---------------"
+    << std::endl;
+    timer2.print();
+
+    timer1.finish();
+    std::cout << "--------------- Total time ---------------"
+    << std::endl;
+    timer1.print();
 }
 
